@@ -75,12 +75,20 @@ export default function App() {
   const [trackResult, setTrackResult] = useState(null)
   const [tracking, setTracking] = useState(false)
   const [toast, setToast] = useState('')
+  const [recentlyViewed, setRecentlyViewed] = useState(() => { try { return JSON.parse(localStorage.getItem('etr_recent') || '[]') } catch { return [] } })
+  const [zoomOpen, setZoomOpen] = useState(false)
+  const [notifyPhone, setNotifyPhone] = useState('')
+  const [notifySubmit, setNotifySubmit] = useState(false)
+  const [notifyDone, setNotifyDone] = useState(false)
 
   useEffect(() => { try { localStorage.setItem('etr_cart', JSON.stringify(cart)) } catch {} }, [cart])
   useEffect(() => { window.scrollTo(0, 0) }, [page])
 
   useEffect(() => {
-    supabase.from('products').select('id,name,category,price,wholesale_price,wholesale_min_qty,quantity,image').order('name').then(({ data }) => { setProducts((data || []).filter(p => p.quantity > 0)); setLoading(false) })
+    supabase.from('products').select('id,name,category,price,wholesale_price,wholesale_min_qty,quantity,image').order('name').then(({ data }) => {
+      setProducts((data || []).filter(p => p.quantity > 0))
+      setLoading(false)
+    })
     supabase.from('promos').select('id,name,start_date,end_date,items,active').eq('active', true).then(({ data }) => {
       if (!data?.length) return; const now = new Date(), map = {}, active = []
       for (const p of data) { if (p.start_date && new Date(p.start_date) > now) continue; if (p.end_date && new Date(p.end_date) < now) continue; let items = typeof p.items === 'string' ? JSON.parse(p.items) : p.items; if (!Array.isArray(items)) continue; active.push(p); for (const it of items) { const pid = it.productId || it.product_id, pp = Number(it.promoPrice || it.promo_price || 0); if (pid && pp > 0 && (!map[pid] || pp < map[pid].price)) map[pid] = { price: pp, name: p.name } } }
@@ -94,7 +102,16 @@ export default function App() {
   }, [products])
 
   const go = (p, h) => { setPage(p); window.location.hash = h || '/' }
-  const open = p => { setSel(p); go('product', `/product/${p.id}`) }
+  const open = p => {
+    setSel(p); go('product', `/product/${p.id}`); setZoomOpen(false); setNotifyDone(false); setNotifyPhone('')
+    // Track recently viewed
+    setRecentlyViewed(prev => {
+      const filtered = prev.filter(x => x.id !== p.id)
+      const updated = [{ id: p.id, name: p.name, price: p.price, image: p.image, category: p.category }, ...filtered].slice(0, 10)
+      try { localStorage.setItem('etr_recent', JSON.stringify(updated)) } catch {}
+      return updated
+    })
+  }
   const cats = useMemo(() => ['all', ...[...new Set(products.filter(p => p.category).map(p => p.category))].sort()], [products])
   const filtered = useMemo(() => { const q = search.toLowerCase(); return products.filter(p => (!q || p.name.toLowerCase().includes(q)) && (cat === 'all' || p.category === cat)) }, [products, search, cat])
 
@@ -103,6 +120,27 @@ export default function App() {
   const cc = cart.reduce((a, c) => a + c.qty, 0)
   const ct = cart.reduce((a, c) => a + c.price * c.qty, 0)
   const gp = p => promoMap[p.id] ? promoMap[p.id].price : Number(p.price)
+
+  // Share product
+  const shareProduct = (p) => {
+    const url = `${window.location.origin}/#/product/${p.id}`
+    const text = `Check out ${p.name} — ${money(gp(p))} at EVERYTINROOM&BEDTIME`
+    if (navigator.share) {
+      navigator.share({ title: p.name, text, url }).catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(`${text}\n${url}`)
+      setToast('Link copied'); setTimeout(() => setToast(''), 1500)
+    }
+  }
+
+  // Notify when back in stock
+  const notifyBackInStock = async (productId) => {
+    if (!notifyPhone.trim() || notifyPhone.trim().length < 10) { setToast('Enter a valid phone number'); setTimeout(() => setToast(''), 2000); return }
+    setNotifySubmit(true)
+    await supabase.from('stock_notifications').insert({ product_id: productId, phone: notifyPhone.trim() })
+    setNotifyDone(true); setNotifySubmit(false)
+    setToast('We\'ll notify you when it\'s back'); setTimeout(() => setToast(''), 2000)
+  }
 
   // Promo products
   const promoProducts = useMemo(() => products.filter(p => promoMap[p.id]), [products, promoMap])
@@ -259,6 +297,26 @@ export default function App() {
           </div>
         </section>
 
+        {/* Recently Viewed on Home */}
+        {recentlyViewed.length > 0 && (
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+            <h2 className="text-sm font-bold mb-3">Recently Viewed</h2>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {recentlyViewed.map(r => {
+                const p = products.find(x => x.id === r.id)
+                if (!p) return null
+                return (
+                  <div key={r.id} onClick={() => open(p)} className="min-w-[120px] max-w-[120px] shrink-0 cursor-pointer">
+                    <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-1.5">{r.image && <img src={thumb(r.image, 250)} className="w-full h-full object-cover" />}</div>
+                    <div className="text-[10px] font-medium line-clamp-1">{r.name}</div>
+                    <div className="text-[10px] font-bold">{money(gp(p))}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         {/* All products */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-6">
           <h2 className="text-sm font-bold mb-3">All Products</h2>
@@ -281,7 +339,24 @@ export default function App() {
       {page === 'product' && sel && <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
         <button onClick={() => window.history.back()} className="text-[11px] text-gray-400 hover:text-gray-600 mb-4 inline-block">&larr; Back</button>
         <div className="grid md:grid-cols-2 gap-5 md:gap-10">
-          <div className="aspect-square bg-gray-100 rounded-2xl overflow-hidden">{sel.image ? <img src={thumb(sel.image, 900)} alt={sel.name} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}</div>
+          {/* Image with zoom */}
+          <div className="relative">
+            <div onClick={() => setZoomOpen(true)} className="aspect-square bg-gray-100 rounded-2xl overflow-hidden cursor-zoom-in">
+              {sel.image ? <img src={thumb(sel.image, 900)} alt={sel.name} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+            </div>
+            <button onClick={() => setZoomOpen(true)} className="absolute bottom-3 right-3 w-8 h-8 bg-white/80 rounded-full flex items-center justify-center text-gray-500 shadow-sm backdrop-blur-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>
+            </button>
+          </div>
+
+          {/* Fullscreen zoom modal */}
+          {zoomOpen && sel.image && (
+            <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center" onClick={() => setZoomOpen(false)}>
+              <button className="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white">{I.x}</button>
+              <img src={thumb(sel.image, 1400)} alt={sel.name} className="max-w-[95vw] max-h-[90vh] object-contain" />
+            </div>
+          )}
+
           <div className="flex flex-col justify-center">
             {sel.category && <p className="text-[10px] tracking-[0.2em] uppercase text-gray-400 mb-1.5">{sel.category}</p>}
             <h1 className="text-lg md:text-xl font-bold mb-3" style={{ fontFamily: 'var(--font-display)' }}>{sel.name}</h1>
@@ -289,6 +364,8 @@ export default function App() {
               <span className="text-xl font-bold">{money(gp(sel))}</span>
               {promoMap[sel.id] && <><span className="text-sm text-gray-300 line-through">{money(sel.price)}</span><span className="text-[10px] font-bold text-[var(--color-promo)] bg-red-50 px-1.5 py-0.5 rounded">PROMO</span></>}
             </div>
+
+            {/* Action buttons */}
             <div className="flex gap-2">
               <button onClick={() => addToCart(sel)} className="flex-1 h-11 bg-[var(--color-brand)] text-white rounded-lg text-sm font-semibold hover:bg-black transition">Add to Cart</button>
               <a href={`https://wa.me/${WA}?text=${encodeURIComponent(`Hi, I'm interested in: ${sel.name} — ${money(gp(sel))}`)}`} target="_blank" className="h-11 px-4 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1.5">
@@ -296,14 +373,43 @@ export default function App() {
                 Ask
               </a>
             </div>
-            <div className="mt-6 pt-5 border-t border-gray-100 space-y-2 text-xs text-gray-400">
+
+            {/* Share button */}
+            <button onClick={() => shareProduct(sel)} className="mt-3 w-full h-9 bg-gray-50 text-gray-500 rounded-lg text-xs font-semibold hover:bg-gray-100 transition flex items-center justify-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              Share this product
+            </button>
+
+            <div className="mt-5 pt-5 border-t border-gray-100 space-y-2 text-xs text-gray-400">
               <p className="flex items-center gap-1.5">{I.check} Nationwide delivery</p>
               <p className="flex items-center gap-1.5">{I.check} Secure MoMo payment</p>
               <p className="flex items-center gap-1.5">{I.phone} Call {SHOP.phone}</p>
             </div>
           </div>
         </div>
+
+        {/* Similar products */}
         {products.filter(p => p.category === sel.category && p.id !== sel.id).length > 0 && <div className="mt-12"><h2 className="text-sm font-bold mb-3">Similar</h2><div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-5">{products.filter(p => p.category === sel.category && p.id !== sel.id).slice(0, 5).map(p => <Card key={p.id} p={p} promo={promoMap[p.id]} onOpen={() => open(p)} onAdd={() => addToCart(p)} />)}</div></div>}
+
+        {/* Recently Viewed */}
+        {recentlyViewed.filter(r => r.id !== sel.id).length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-sm font-bold mb-3">Recently Viewed</h2>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {recentlyViewed.filter(r => r.id !== sel.id).map(r => {
+                const p = products.find(x => x.id === r.id)
+                if (!p) return null
+                return (
+                  <div key={r.id} onClick={() => open(p)} className="min-w-[120px] max-w-[120px] shrink-0 cursor-pointer">
+                    <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-1.5">{r.image && <img src={thumb(r.image, 250)} className="w-full h-full object-cover" />}</div>
+                    <div className="text-[10px] font-medium line-clamp-1">{r.name}</div>
+                    <div className="text-[10px] font-bold">{money(gp(p))}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>}
 
       {/* ═══ CART ═══ */}
