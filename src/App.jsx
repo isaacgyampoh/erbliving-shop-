@@ -201,7 +201,7 @@ export default function App() {
       {/* NAV */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-13 flex items-center justify-between">
-          <button onClick={() => go('home', '/')} className="font-bold text-sm md:text-base tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>EVERYTINROOM<span className="hidden sm:inline">&BEDTIME</span></button>
+          <button onClick={() => go('home', '/')} className="font-bold text-sm md:text-base tracking-tight" style={{ fontFamily: 'var(--font-display)' }}><span className="sm:hidden">ERBLiving</span><span className="hidden sm:inline">EVERYTINROOM&BEDTIME</span></button>
           <div className="hidden md:flex items-center gap-6">
             {[['Home','home','/'],['Shop','shop','/shop'],['Track','track','/track']].map(([l,p,h]) => <button key={p} onClick={() => go(p,h)} className={`text-xs font-semibold transition ${page === p ? 'text-[var(--color-brand)]' : 'text-gray-400 hover:text-gray-600'}`}>{l}</button>)}
             <a href={`tel:${SHOP.phone.replace(/\s/g,'')}`} className="text-xs font-semibold text-gray-400 hover:text-gray-600">{SHOP.phone}</a>
