@@ -86,7 +86,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const handle = () => { const h = window.location.hash.slice(1); if (h.startsWith('/product/')) { const p = products.find(x => x.id === h.replace('/product/','')); if (p) { setSel(p); setPage('product') } } else if (h === '/shop') setPage('shop'); else if (h === '/cart') setPage('cart'); else if (h === '/track') setPage('track'); else if (h === '/checkout') setPage('checkout'); else setPage('home') }
+    const handle = () => { const h = window.location.hash.slice(1); if (h.startsWith('/product/')) { const p = products.find(x => x.id === h.replace('/product/','')); if (p) { setSel(p); setPage('product') } } else if (h === '/shop') setPage('shop'); else if (h === '/cart') setPage('cart'); else if (h === '/track') setPage('track'); else if (h === '/checkout') setPage('checkout'); else if (h === '/success') { /* stay on success */ } else setPage('home') }
     window.addEventListener('hashchange', handle); handle(); return () => window.removeEventListener('hashchange', handle)
   }, [products])
 
@@ -122,7 +122,7 @@ export default function App() {
     const { data: mc } = await supabase.from('whatsapp_orders').select('ussd_code').order('ussd_code', { ascending: false }).limit(1)
     const uc = (mc?.[0]?.ussd_code || 0) + 1
     const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: custName.trim(), customer_phone: custPhone.trim(), items: JSON.stringify(items), subtotal: ct, total: ct, address: custAddress.trim() || null, notes: custNotes.trim() || 'Order from erbliving.shop', status: 'Pending', ussd_code: uc })
-    if (!error) { setOrderResult({ orderNo, ussdCode: uc, total: ct }); setCart([]); setPage('success'); window.location.hash = '/' }
+    if (!error) { setOrderResult({ orderNo, ussdCode: uc, total: ct }); setCart([]); setPage('success'); window.location.hash = '/success' }
     setSubmitting(false)
   }
 
