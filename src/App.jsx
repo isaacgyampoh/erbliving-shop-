@@ -106,6 +106,15 @@ export default function App() {
   // "Trending" — shuffle products deterministically by day
   const trending = useMemo(() => { const day = new Date().getDate(); return [...products].sort((a, b) => ((a.id.charCodeAt(0) + day) % 7) - ((b.id.charCodeAt(0) + day) % 7)).slice(0, 6) }, [products])
 
+  // Hero slideshow — pick products with images for banner
+  const heroProducts = useMemo(() => products.filter(p => p.image).slice(0, 5), [products])
+  const [heroIdx, setHeroIdx] = useState(0)
+  useEffect(() => {
+    if (heroProducts.length <= 1) return
+    const i = setInterval(() => setHeroIdx(prev => (prev + 1) % heroProducts.length), 4000)
+    return () => clearInterval(i)
+  }, [heroProducts.length])
+
   const placeOrder = async () => {
     if (!custName.trim() || !custPhone.trim()) return; setSubmitting(true)
     const orderNo = 'WEB-' + Date.now().toString(36).toUpperCase()
@@ -154,24 +163,28 @@ export default function App() {
 
       {/* ═══ HOME ═══ */}
       {page === 'home' && <>
-        {/* Hero banner with featured product images */}
-        <section className="bg-[var(--color-warm)]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-              {/* Main banner */}
-              <div className="min-w-[280px] sm:min-w-[400px] bg-[var(--color-brand)] rounded-2xl p-6 text-white flex-shrink-0 flex flex-col justify-between" style={{ minHeight: 180 }}>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-2">New Collection</p>
-                  <h2 className="text-xl font-bold leading-tight" style={{ fontFamily: 'var(--font-display)' }}>Your home,<br/>beautifully furnished.</h2>
-                </div>
-                <button onClick={() => go('shop','/shop')} className="mt-4 self-start h-9 px-5 bg-white text-[var(--color-brand)] rounded-lg text-xs font-bold hover:bg-gray-100 transition flex items-center gap-1.5">Shop Now {I.arrow}</button>
-              </div>
-              {/* Product highlight cards */}
-              {trending.slice(0, 3).map(p => (
-                <div key={p.id} onClick={() => open(p)} className="min-w-[160px] bg-white rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer shadow-sm hover:shadow-md transition">
-                  <div className="h-[130px] bg-gray-100">{p.image && <img src={thumb(p.image, 300)} alt="" className="w-full h-full object-cover" />}</div>
-                  <div className="p-3"><div className="text-[11px] font-medium line-clamp-2 leading-snug">{p.name}</div><div className="text-[12px] font-bold mt-1">{money(gp(p))}</div></div>
-                </div>
+        {/* Hero — rotating product images as background */}
+        <section className="relative overflow-hidden bg-black" style={{ height: 'min(55vh, 420px)' }}>
+          {/* Background images — crossfade */}
+          {heroProducts.map((p, i) => (
+            <div key={p.id} className="absolute inset-0 transition-opacity duration-1000" style={{ opacity: i === heroIdx ? 1 : 0 }}>
+              <img src={thumb(p.image, 1200)} alt="" className="w-full h-full object-cover" style={{ filter: 'brightness(0.5)' }} />
+            </div>
+          ))}
+          {/* Overlay content */}
+          <div className="relative z-10 h-full flex flex-col justify-end max-w-7xl mx-auto px-4 sm:px-6 pb-8">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/60 mb-2">New Arrivals</p>
+            <h1 className="text-2xl md:text-4xl font-bold text-white leading-tight mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+              {heroProducts[heroIdx]?.name || 'Quality Home Furnishings'}
+            </h1>
+            <div className="flex items-center gap-3">
+              <button onClick={() => go('shop', '/shop')} className="h-10 px-6 bg-white text-[var(--color-brand)] rounded-lg text-xs font-bold hover:bg-gray-100 transition flex items-center gap-1.5">Shop Now {I.arrow}</button>
+              {heroProducts[heroIdx] && <button onClick={() => open(heroProducts[heroIdx])} className="h-10 px-5 bg-white/15 text-white rounded-lg text-xs font-semibold hover:bg-white/25 transition backdrop-blur-sm">{money(gp(heroProducts[heroIdx]))}</button>}
+            </div>
+            {/* Dots */}
+            <div className="flex gap-1.5 mt-5">
+              {heroProducts.map((_, i) => (
+                <button key={i} onClick={() => setHeroIdx(i)} className={`h-1 rounded-full transition-all duration-500 ${i === heroIdx ? 'w-6 bg-white' : 'w-1.5 bg-white/30'}`} />
               ))}
             </div>
           </div>
