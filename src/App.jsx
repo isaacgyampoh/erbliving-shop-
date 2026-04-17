@@ -60,7 +60,8 @@ export default function App() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('products').select('id,name,category,price,wholesale_price,wholesale_min_qty,quantity,image,description').order('name')
+      const { data, error } = await supabase.from('products').select('id,name,category,price,wholesale_price,wholesale_min_qty,quantity,image').order('name')
+      console.log('Products loaded:', data?.length, 'error:', error?.message)
       setProducts((data || []).filter(p => p.quantity > 0)); setLoading(false)
     }
     const loadPromos = async () => {
@@ -173,7 +174,7 @@ export default function App() {
             {selectedProduct.category && <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[var(--color-accent)] mb-3">{selectedProduct.category}</p>}
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-brand)] mb-4" style={{ fontFamily: 'var(--font-display)' }}>{selectedProduct.name}</h1>
             <div className="flex items-baseline gap-3 mb-6"><span className="text-2xl font-bold">{money(getPrice(selectedProduct))}</span>{promoMap[selectedProduct.id] && <span className="text-lg text-gray-400 line-through">{money(selectedProduct.price)}</span>}</div>
-            {selectedProduct.description && <p className="text-gray-500 text-sm leading-relaxed mb-8">{selectedProduct.description}</p>}
+            
             <div className="flex gap-3">
               <button onClick={() => addToCart(selectedProduct)} className="flex-1 h-13 bg-[var(--color-brand)] text-white rounded-full text-sm font-semibold hover:bg-black transition">Add to Cart</button>
               <a href={`https://wa.me/${WA}?text=${encodeURIComponent(`Hi, I'm interested in: ${selectedProduct.name} (${money(getPrice(selectedProduct))})`)}`} target="_blank" className="h-13 px-6 bg-gray-100 text-gray-700 rounded-full text-sm font-semibold hover:bg-gray-200 transition flex items-center gap-2"><IconWA /> Ask</a>
