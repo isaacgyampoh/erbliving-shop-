@@ -116,13 +116,25 @@ export default function App() {
   }, [heroProducts.length])
 
   const placeOrder = async () => {
-    if (!custName.trim() || !custPhone.trim()) return; setSubmitting(true)
+    const name = custName.trim().replace(/[<>]/g, '')
+    const phone = custPhone.trim().replace(/[^0-9+\s]/g, '')
+    const addr = custAddress.trim().replace(/[<>]/g, '')
+    const notes = custNotes.trim().replace(/[<>]/g, '')
+    if (!name || !phone) return
+    if (phone.length < 10) { setToast('Enter a valid phone number'); setTimeout(() => setToast(''), 2000); return }
+    if (cart.length === 0) return
+
+    // Rate limit — max 1 order per 30 seconds
+    const lastOrder = Number(sessionStorage.getItem('last_order') || 0)
+    if (Date.now() - lastOrder < 30000) { setToast('Please wait before placing another order'); setTimeout(() => setToast(''), 2000); return }
+
+    setSubmitting(true)
     const orderNo = 'WEB-' + Date.now().toString(36).toUpperCase()
-    const items = cart.map(c => ({ name: c.name, qty: c.qty, price: c.price, lineTotal: c.price * c.qty }))
+    const items = cart.map(c => ({ name: c.name.replace(/[<>]/g, ''), qty: c.qty, price: c.price, lineTotal: c.price * c.qty }))
     const { data: mc } = await supabase.from('whatsapp_orders').select('ussd_code').order('ussd_code', { ascending: false }).limit(1)
     const uc = (mc?.[0]?.ussd_code || 0) + 1
-    const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: custName.trim(), customer_phone: custPhone.trim(), items: JSON.stringify(items), subtotal: ct, total: ct, address: custAddress.trim() || null, notes: custNotes.trim() || 'Order from erbliving.shop', status: 'Pending', ussd_code: uc })
-    if (!error) { setOrderResult({ orderNo, ussdCode: uc, total: ct }); setCart([]); setPage('success'); window.location.hash = '/success' }
+    const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: notes || 'Order from erbliving.shop', status: 'Pending', ussd_code: uc })
+    if (!error) { sessionStorage.setItem('last_order', String(Date.now())); setOrderResult({ orderNo, ussdCode: uc, total: ct }); setCart([]); setPage('success'); window.location.hash = '/success' }
     setSubmitting(false)
   }
 
