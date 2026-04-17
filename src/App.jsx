@@ -134,27 +134,50 @@ export default function App() {
 
       {/* HOME */}
       {page === 'home' && <>
-        <section className="bg-[var(--color-warm)]"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24"><div className="max-w-2xl">
-          <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[var(--color-accent)] mb-4">{SHOP.address}</p>
-          <h1 className="text-4xl md:text-6xl font-bold leading-[1.1] text-[var(--color-brand)] mb-6" style={{ fontFamily: 'var(--font-display)' }}>Your home,<br/>beautifully furnished.</h1>
-          <p className="text-gray-500 text-base md:text-lg leading-relaxed mb-8 max-w-lg">Quality bedsheets, curtains, carpets, cookware and everything your home needs. Delivered anywhere in Ghana.</p>
-          <div className="flex flex-wrap gap-3">
-            <button onClick={() => navigate('shop', '/shop')} className="h-12 px-8 bg-[var(--color-brand)] text-white rounded-full text-sm font-semibold hover:bg-black transition flex items-center gap-2">Shop Now <IconArrow /></button>
-            <a href={`https://wa.me/${WA}`} target="_blank" className="h-12 px-6 bg-white text-gray-700 rounded-full text-sm font-semibold hover:bg-gray-50 transition flex items-center gap-2 border border-gray-200"><IconWA /> WhatsApp Us</a>
+        {/* Compact hero — one line, clean */}
+        <section className="bg-[var(--color-warm)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 md:py-14 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <h1 className="text-2xl md:text-4xl font-bold leading-tight text-[var(--color-brand)]" style={{ fontFamily: 'var(--font-display)' }}>Your home, beautifully furnished.</h1>
+              <p className="text-gray-500 text-sm mt-2 max-w-md">Bedsheets, curtains, carpets, cookware and more. Delivered across Ghana.</p>
+            </div>
+            <button onClick={() => navigate('shop', '/shop')} className="h-11 px-7 bg-[var(--color-brand)] text-white rounded-full text-sm font-semibold hover:bg-black transition flex items-center gap-2 shrink-0 self-start md:self-center">Shop Now <IconArrow /></button>
           </div>
-        </div></div></section>
-
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <h2 className="text-2xl font-bold text-[var(--color-brand)] mb-8" style={{ fontFamily: 'var(--font-display)' }}>Shop by Category</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{cats.filter(c => c !== 'all').map(c => <button key={c} onClick={() => { setCat(c); navigate('shop', '/shop') }} className="bg-[var(--color-warm)] rounded-2xl p-6 text-left hover:bg-gray-100 transition"><div className="text-sm font-semibold text-[var(--color-brand)] capitalize">{c}</div><div className="text-xs text-gray-400 mt-1">{products.filter(p => p.category === c).length} items</div></button>)}</div>
         </section>
 
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-          <div className="flex items-center justify-between mb-8"><h2 className="text-2xl font-bold text-[var(--color-brand)]" style={{ fontFamily: 'var(--font-display)' }}>Featured</h2><button onClick={() => navigate('shop', '/shop')} className="text-sm font-medium text-gray-500 hover:text-black transition flex items-center gap-1">View all <IconArrow /></button></div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{products.slice(0, 8).map(p => <ProductCard key={p.id} p={p} promo={promoMap[p.id]} onOpen={() => openProduct(p)} onAdd={() => addToCart(p)} />)}</div>
+        {/* Categories — horizontal scroll, compact */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button onClick={() => navigate('shop', '/shop')} className="h-9 px-5 rounded-full text-xs font-semibold whitespace-nowrap bg-[var(--color-brand)] text-white shrink-0">All Products</button>
+            {cats.filter(c => c !== 'all').map(c => (
+              <button key={c} onClick={() => { setCat(c); navigate('shop', '/shop') }} className="h-9 px-5 rounded-full text-xs font-semibold whitespace-nowrap bg-gray-100 text-gray-600 hover:bg-gray-200 transition shrink-0 capitalize">{c}</button>
+            ))}
+          </div>
         </section>
 
-        <section className="bg-[var(--color-warm)] py-12"><div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">{[['Nationwide Delivery','Across all regions'],['Quality Products','Carefully selected'],['Secure Payments','Pay via Mobile Money'],['Customer Support','Call or WhatsApp us']].map(([t,d]) => <div key={t}><div className="text-sm font-bold text-[var(--color-brand)]">{t}</div><div className="text-xs text-gray-400 mt-1">{d}</div></div>)}</div></section>
+        {/* Products — show immediately, 12 items */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {products.slice(0, 12).map(p => (
+              <ProductCard key={p.id} p={p} promo={promoMap[p.id]} onOpen={() => openProduct(p)} onAdd={() => addToCart(p)} />
+            ))}
+          </div>
+          {products.length > 12 && (
+            <div className="text-center mt-8">
+              <button onClick={() => navigate('shop', '/shop')} className="h-11 px-8 bg-gray-100 text-gray-700 rounded-full text-sm font-semibold hover:bg-gray-200 transition">View all {products.length} products</button>
+            </div>
+          )}
+        </section>
+
+        {/* Trust — minimal, one line */}
+        <section className="border-t border-gray-100 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-wrap justify-center gap-x-10 gap-y-3 text-xs text-gray-400">
+            <span>Nationwide Delivery</span>
+            <span>Quality Products</span>
+            <span>Secure MoMo Payments</span>
+            <span>Call {SHOP.phone}</span>
+          </div>
+        </section>
       </>}
 
       {/* SHOP */}
