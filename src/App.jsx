@@ -50,6 +50,9 @@ function Card({ p, promo, onOpen, onAdd }) {
         </div>
         <button onClick={add} className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition ${ok ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{ok ? 'Added' : 'Add'}</button>
       </div>
+      {!promo && Number(p.wholesale_price || 0) > 0 && Number(p.wholesale_min_qty || 0) > 0 && (
+        <div className="text-[9px] text-gray-400 mt-0.5">Buy {p.wholesale_min_qty}+ for {money(p.wholesale_price)} each</div>
+      )}
     </div>
   )
 }
@@ -58,6 +61,7 @@ export default function App() {
   const [products, setProducts] = useState([])
   const [promos, setPromos] = useState([])
   const [promoMap, setPromoMap] = useState({})
+  const [bundles, setBundles] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState('home')
   const [sel, setSel] = useState(null)
@@ -94,6 +98,9 @@ export default function App() {
       for (const p of data) { if (p.start_date && new Date(p.start_date) > now) continue; if (p.end_date && new Date(p.end_date) < now) continue; let items = typeof p.items === 'string' ? JSON.parse(p.items) : p.items; if (!Array.isArray(items)) continue; active.push(p); for (const it of items) { const pid = it.productId || it.product_id, pp = Number(it.promoPrice || it.promo_price || 0); if (pid && pp > 0 && (!map[pid] || pp < map[pid].price)) map[pid] = { price: pp, name: p.name } } }
       setPromoMap(map); setPromos(active)
     })
+    supabase.from('bundles').select('id,name,bundle_price,products,active').eq('active', true).then(({ data }) => {
+      if (data?.length) setBundles(data.map(b => ({ ...b, products: typeof b.products === 'string' ? JSON.parse(b.products) : b.products || [] })))
+    })
   }, [])
 
   useEffect(() => {
@@ -115,8 +122,38 @@ export default function App() {
   const cats = useMemo(() => ['all', ...[...new Set(products.filter(p => p.category).map(p => p.category))].sort()], [products])
   const filtered = useMemo(() => { const q = search.toLowerCase(); return products.filter(p => (!q || p.name.toLowerCase().includes(q)) && (cat === 'all' || p.category === cat)) }, [products, search, cat])
 
-  const addToCart = p => { setCart(prev => { const ex = prev.find(c => c.id === p.id); const price = promoMap[p.id] ? promoMap[p.id].price : Number(p.price); if (ex) return prev.map(c => c.id === p.id ? { ...c, qty: c.qty + 1 } : c); return [...prev, { id: p.id, name: p.name, price, qty: 1, img: p.image }] }); setToast('Added to cart'); setTimeout(() => setToast(''), 1500) }
-  const updQty = (id, d) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + d) } : c).filter(c => c.qty > 0))
+  const addToCart = p => {
+    setCart(prev => {
+      const ex = prev.find(c => c.id === p.id)
+      const promoPrice = promoMap[p.id] ? promoMap[p.id].price : null
+      const wp = Number(p.wholesale_price || 0)
+      const wm = Number(p.wholesale_min_qty || 0)
+      const retailPrice = promoPrice || Number(p.price)
+
+      if (ex) {
+        const newQty = ex.qty + 1
+        // Apply wholesale price if qty reaches minimum
+        const useWholesale = wp > 0 && wm > 0 && newQty >= wm && !promoPrice
+        const newPrice = useWholesale ? wp : retailPrice
+        return prev.map(c => c.id === p.id ? { ...c, qty: newQty, price: newPrice, isWholesale: useWholesale } : c)
+      }
+      return [...prev, { id: p.id, name: p.name, price: retailPrice, retailPrice, wp, wm, qty: 1, img: p.image, isWholesale: false }]
+    })
+    setToast('Added to cart'); setTimeout(() => setToast(''), 1500)
+  }
+
+  const updQty = (id, d) => setCart(prev => prev.map(c => {
+    if (c.id !== id) return c
+    const newQty = Math.max(0, c.qty + d)
+    if (newQty === 0) return { ...c, qty: 0 }
+    // Recalculate wholesale
+    const useWholesale = c.wp > 0 && c.wm > 0 && newQty >= c.wm
+    const newPrice = useWholesale ? c.wp : c.retailPrice
+    return { ...c, qty: newQty, price: newPrice, isWholesale: useWholesale }
+  }).filter(c => c.qty > 0))
+
+  const removeFromCart = id => setCart(prev => prev.filter(c => c.id !== id))
+  const clearCart = () => { setCart([]); setToast('Cart cleared'); setTimeout(() => setToast(''), 1500) }
   const cc = cart.reduce((a, c) => a + c.qty, 0)
   const ct = cart.reduce((a, c) => a + c.price * c.qty, 0)
   const gp = p => promoMap[p.id] ? promoMap[p.id].price : Number(p.price)
@@ -280,6 +317,39 @@ export default function App() {
           </section>
         )}
 
+        {/* Bundles */}
+        {bundles.length > 0 && (
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <h2 className="text-sm font-bold">Bundle Deals</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {bundles.map(b => {
+                const bundleProducts = b.products.map(bp => products.find(p => p.id === (bp.productId || bp.product_id))).filter(Boolean)
+                const normalTotal = bundleProducts.reduce((sum, p) => sum + Number(p.price), 0)
+                const savings = normalTotal - Number(b.bundle_price)
+                return (
+                  <div key={b.id} className="min-w-[200px] max-w-[200px] bg-gray-50 rounded-xl p-3 shrink-0">
+                    <div className="flex gap-1 mb-2">
+                      {bundleProducts.slice(0, 3).map(p => (
+                        <div key={p.id} className="w-12 h-12 bg-white rounded-lg overflow-hidden">{p.image && <img src={thumb(p.image, 100)} className="w-full h-full object-cover" />}</div>
+                      ))}
+                      {bundleProducts.length > 3 && <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-[10px] text-gray-400">+{bundleProducts.length - 3}</div>}
+                    </div>
+                    <div className="text-[12px] font-semibold line-clamp-2">{b.name}</div>
+                    <div className="flex items-baseline gap-1.5 mt-1">
+                      <span className="text-[13px] font-bold">{money(b.bundle_price)}</span>
+                      {savings > 0 && <span className="text-[10px] text-gray-400 line-through">{money(normalTotal)}</span>}
+                    </div>
+                    {savings > 0 && <div className="text-[9px] font-bold text-green-600 mt-0.5">Save {money(savings)}</div>}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Trending */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
           <div className="flex items-center gap-2 mb-3">
@@ -365,6 +435,14 @@ export default function App() {
               {promoMap[sel.id] && <><span className="text-sm text-gray-300 line-through">{money(sel.price)}</span><span className="text-[10px] font-bold text-[var(--color-promo)] bg-red-50 px-1.5 py-0.5 rounded">PROMO</span></>}
             </div>
 
+            {/* Wholesale info */}
+            {Number(sel.wholesale_price || 0) > 0 && Number(sel.wholesale_min_qty || 0) > 0 && !promoMap[sel.id] && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <div className="text-[11px] font-bold text-gray-700">Wholesale Available</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">Buy {sel.wholesale_min_qty}+ units at {money(sel.wholesale_price)} each</div>
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="flex gap-2">
               <button onClick={() => addToCart(sel)} className="flex-1 h-11 bg-[var(--color-brand)] text-white rounded-lg text-sm font-semibold hover:bg-black transition">Add to Cart</button>
@@ -416,9 +494,21 @@ export default function App() {
       {page === 'cart' && <div className="max-w-xl mx-auto px-4 sm:px-6 py-6">
         <h1 className="text-base font-bold mb-5" style={{ fontFamily: 'var(--font-display)' }}>Cart {cc > 0 && <span className="text-gray-300 font-normal">({cc})</span>}</h1>
         {cart.length === 0 ? <div className="text-center py-14"><p className="text-gray-300 text-sm mb-3">Your cart is empty</p><button onClick={() => go('shop','/shop')} className="h-9 px-5 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold">Browse Products</button></div> : <>
-          <div className="space-y-2 mb-5">{cart.map(c => <div key={c.id} className="flex gap-3 items-center p-2.5 rounded-xl bg-gray-50">
+          {/* Clear all */}
+          <div className="flex justify-end mb-3"><button onClick={clearCart} className="text-[11px] text-gray-400 hover:text-red-500 transition">Clear all</button></div>
+          <div className="space-y-2 mb-5">{cart.map(c => <div key={c.id} className="flex gap-3 items-center p-2.5 rounded-xl bg-gray-50 relative">
+            {/* Remove button */}
+            <button onClick={() => removeFromCart(c.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-300 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
             <div className="w-12 h-12 bg-white rounded-lg overflow-hidden shrink-0">{c.img ? <img src={thumb(c.img, 150)} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}</div>
-            <div className="flex-1 min-w-0"><div className="text-[12px] font-medium truncate">{c.name}</div><div className="text-[12px] font-bold mt-0.5">{money(c.price)}</div></div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-medium truncate">{c.name}</div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[12px] font-bold">{money(c.price)}</span>
+                {c.isWholesale && <span className="text-[8px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">WHOLESALE</span>}
+              </div>
+            </div>
             <div className="flex items-center gap-1"><button onClick={() => updQty(c.id,-1)} className="w-7 h-7 rounded bg-white flex items-center justify-center text-gray-400">{I.minus}</button><span className="w-5 text-center text-[12px] font-bold">{c.qty}</span><button onClick={() => updQty(c.id,1)} className="w-7 h-7 rounded bg-white flex items-center justify-center text-gray-400">{I.plus}</button></div>
           </div>)}</div>
           <div className="border-t border-gray-100 pt-3 mb-5"><div className="flex justify-between text-sm"><span className="text-gray-400">Total</span><span className="font-bold">{money(ct)}</span></div><p className="text-[10px] text-gray-300 mt-1">Delivery confirmed by our team after checkout</p></div>
