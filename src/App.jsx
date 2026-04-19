@@ -93,9 +93,33 @@ export default function App() {
       setProducts((data || []).filter(p => p.quantity > 0))
       setLoading(false)
     })
-    supabase.from('promos').select('id,name,start_date,end_date,items,active').eq('active', true).then(({ data }) => {
-      if (!data?.length) return; const now = new Date(), map = {}, active = []
-      for (const p of data) { if (p.start_date && new Date(p.start_date) > now) continue; if (p.end_date && new Date(p.end_date) < now) continue; let items = typeof p.items === 'string' ? JSON.parse(p.items) : p.items; if (!Array.isArray(items)) continue; active.push(p); for (const it of items) { const pid = it.productId || it.product_id, pp = Number(it.promoPrice || it.promo_price || 0); if (pid && pp > 0 && (!map[pid] || pp < map[pid].price)) map[pid] = { price: pp, name: p.name } } }
+    supabase.from('promos').select('*').eq('active', true).then(({ data, error }) => {
+      if (error) { console.error('Promo load error:', error); return }
+      console.log('Raw promos:', JSON.stringify(data))
+      if (!data?.length) { console.log('No active promos found'); return }
+      const now = new Date(), map = {}, active = []
+      for (const p of data) {
+        // Skip future promos
+        if (p.start_date && new Date(p.start_date) > now) { console.log('Skipping future promo:', p.name); continue }
+        // Skip expired promos (but allow promos with no end date)
+        if (p.end_date && new Date(p.end_date) < now) { console.log('Skipping expired promo:', p.name); continue }
+        
+        let items
+        try {
+          items = typeof p.items === 'string' ? JSON.parse(p.items) : p.items
+        } catch (e) { console.log('Failed to parse items for:', p.name); continue }
+        if (!Array.isArray(items)) { console.log('Items not array for:', p.name, typeof items); continue }
+        
+        active.push(p)
+        for (const it of items) {
+          const pid = it.productId || it.product_id || it.id
+          const pp = Number(it.promoPrice || it.promo_price || it.price || 0)
+          if (pid && pp > 0 && (!map[pid] || pp < map[pid].price)) {
+            map[pid] = { price: pp, name: p.name }
+          }
+        }
+      }
+      console.log('Active promos:', active.length, 'Mapped products:', Object.keys(map).length)
       setPromoMap(map); setPromos(active)
     })
     supabase.from('bundles').select('id,name,bundle_price,products,active').eq('active', true).then(({ data }) => {
@@ -383,22 +407,6 @@ export default function App() {
                       <span className="text-[10px] text-gray-300 line-through">{money(p.price)}</span>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Popular Products — show when no promos/bundles */}
-        {promoProducts.length === 0 && bundles.length === 0 && (
-          <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
-            <h2 className="text-sm font-bold mb-3">Popular Products</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {trending.map(p => (
-                <div key={p.id} onClick={() => open(p)} className="cursor-pointer group">
-                  <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-1.5">{p.image && <img src={thumb(p.image, 300)} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />}</div>
-                  <div className="text-[11px] font-medium line-clamp-1">{p.name}</div>
-                  <div className="text-[11px] font-bold">{money(gp(p))}</div>
                 </div>
               ))}
             </div>
