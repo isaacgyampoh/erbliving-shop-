@@ -73,6 +73,7 @@ export default function App() {
   const [custPhone, setCustPhone] = useState('')
   const [custAddress, setCustAddress] = useState('')
   const [custNotes, setCustNotes] = useState('')
+  const [fulfillment, setFulfillment] = useState('delivery') // 'delivery' or 'pickup'
   const [submitting, setSubmitting] = useState(false)
   const [orderResult, setOrderResult] = useState(null)
   const [trackQuery, setTrackQuery] = useState('')
@@ -241,10 +242,11 @@ export default function App() {
   const placeOrder = async () => {
     const name = custName.trim().replace(/[<>]/g, '')
     const phone = custPhone.trim().replace(/[^0-9+\s]/g, '')
-    const addr = custAddress.trim().replace(/[<>]/g, '')
+    const addr = fulfillment === 'pickup' ? 'PICKUP - ' + SHOP.address : custAddress.trim().replace(/[<>]/g, '')
     const notes = custNotes.trim().replace(/[<>]/g, '')
     if (!name || !phone) return
     if (phone.length < 10) { setToast('Enter a valid phone number'); setTimeout(() => setToast(''), 2000); return }
+    if (fulfillment === 'delivery' && !custAddress.trim()) { setToast('Enter delivery address'); setTimeout(() => setToast(''), 2000); return }
     if (cart.length === 0) return
 
     // Rate limit — max 1 order per 30 seconds
@@ -256,8 +258,9 @@ export default function App() {
     const items = cart.map(c => ({ name: c.name.replace(/[<>]/g, ''), qty: c.qty, price: c.price, lineTotal: c.price * c.qty }))
     const { data: mc } = await supabase.from('whatsapp_orders').select('ussd_code').order('ussd_code', { ascending: false }).limit(1)
     const uc = (mc?.[0]?.ussd_code || 0) + 1
-    const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: notes || 'Order from erbliving.shop', status: 'Pending', ussd_code: uc })
-    if (!error) { sessionStorage.setItem('last_order', String(Date.now())); setOrderResult({ orderNo, ussdCode: uc, total: ct }); setCart([]); setPage('success'); window.location.hash = '/success' }
+    const orderNotes = [fulfillment === 'pickup' ? 'PICKUP' : 'DELIVERY', notes || '', 'erbliving.shop'].filter(Boolean).join(' | ')
+    const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: orderNotes, status: 'Pending', ussd_code: uc })
+    if (!error) { sessionStorage.setItem('last_order', String(Date.now())); setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment }); setCart([]); setPage('success'); window.location.hash = '/success' }
     setSubmitting(false)
   }
 
@@ -570,15 +573,40 @@ export default function App() {
       {page === 'checkout' && <div className="max-w-md mx-auto px-4 sm:px-6 py-6">
         <button onClick={() => go('cart','/cart')} className="text-[11px] text-gray-400 hover:text-gray-600 mb-4 inline-block">&larr; Back to cart</button>
         <h1 className="text-base font-bold mb-5" style={{ fontFamily: 'var(--font-display)' }}>Checkout</h1>
+
+        {/* Fulfillment toggle */}
+        <div className="mb-5">
+          <div className="text-[11px] text-gray-400 font-medium mb-2">How do you want to receive your order?</div>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setFulfillment('delivery')} className={`h-12 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${fulfillment === 'delivery' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+              Delivery
+            </button>
+            <button onClick={() => setFulfillment('pickup')} className={`h-12 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${fulfillment === 'pickup' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+              Pickup
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-3 mb-5">
           <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Full name *" />
           <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custPhone} onChange={e => setCustPhone(e.target.value)} placeholder="Phone number *" type="tel" />
-          <textarea className="w-full h-16 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300 resize-none" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Delivery address (city, area, landmark)" />
+          {fulfillment === 'delivery' && (
+            <textarea className="w-full h-16 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300 resize-none" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Delivery address (city, area, landmark) *" />
+          )}
+          {fulfillment === 'pickup' && (
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <div className="text-[11px] font-bold text-gray-700 mb-1">Pickup Location</div>
+              <div className="text-[11px] text-gray-500">{SHOP.address}</div>
+              <a href={SHOP.mapsUrl} target="_blank" className="text-[10px] text-blue-500 font-medium mt-1 inline-block">Open in Google Maps →</a>
+            </div>
+          )}
           <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custNotes} onChange={e => setCustNotes(e.target.value)} placeholder="Notes (optional)" />
         </div>
         <div className="bg-gray-50 rounded-xl p-3.5 mb-4">{cart.map(c => <div key={c.id} className="flex justify-between text-[12px] py-0.5"><span className="text-gray-500">{c.qty}x {c.name}</span><span className="font-semibold">{money(c.price*c.qty)}</span></div>)}<div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>{money(ct)}</span></div></div>
         <p className="text-[10px] text-gray-300 text-center mb-3">You'll get a USSD code to pay via MoMo</p>
-        <button onClick={placeOrder} disabled={!custName.trim()||!custPhone.trim()||submitting} className="w-full h-11 bg-[var(--color-brand)] text-white rounded-lg text-sm font-semibold disabled:opacity-30">{submitting ? 'Placing...' : `Place Order · ${money(ct)}`}</button>
+        <button onClick={placeOrder} disabled={!custName.trim()||!custPhone.trim()||(fulfillment==='delivery'&&!custAddress.trim())||submitting} className="w-full h-11 bg-[var(--color-brand)] text-white rounded-lg text-sm font-semibold disabled:opacity-30">{submitting ? 'Placing...' : `Place Order · ${money(ct)}`}</button>
       </div>}
 
       {/* ═══ SUCCESS ═══ */}
@@ -587,7 +615,15 @@ export default function App() {
         <h1 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Order Placed</h1>
         <p className="text-xs text-gray-400 mb-6">{orderResult.orderNo}</p>
         <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left"><p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">Pay via Mobile Money</p><div className="bg-white rounded-lg p-3 text-center border border-gray-200 cursor-pointer hover:bg-gray-50 transition" onClick={() => { navigator.clipboard?.writeText(`*920*141*${orderResult.ussdCode}#`); setToast('USSD code copied'); setTimeout(() => setToast(''), 1500) }}><span className="text-lg font-bold font-mono">*920*141*{orderResult.ussdCode}#</span><div className="text-[9px] text-gray-400 mt-1">Tap to copy</div></div><p className="text-[10px] text-gray-400 mt-2 text-center">{money(orderResult.total)}</p></div>
-        <div className="text-left text-xs text-gray-400 space-y-1 mb-6"><p>1. Dial the code to pay</p><p>2. We confirm and process your order</p><p>3. Our team contacts you for delivery</p></div>
+        <div className="text-left text-xs text-gray-400 space-y-1 mb-6">
+          <p>1. Dial the code to pay</p>
+          <p>2. We confirm and process your order</p>
+          {orderResult.fulfillment === 'pickup' ? (
+            <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
+          ) : (
+            <p>3. Our team contacts you for delivery</p>
+          )}
+        </div>
         <button onClick={() => go('home','/')} className="h-9 px-5 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold">Continue Shopping</button>
       </div>}
 
