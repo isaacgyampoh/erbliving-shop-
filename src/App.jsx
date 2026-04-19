@@ -130,33 +130,54 @@ export default function App() {
       const wm = Number(p.wholesale_min_qty || 0)
       const retailPrice = promoPrice || Number(p.price)
 
+      let updated
       if (ex) {
-        const newQty = ex.qty + 1
-        // Apply wholesale price if qty reaches minimum
-        const useWholesale = wp > 0 && wm > 0 && newQty >= wm && !promoPrice
-        const newPrice = useWholesale ? wp : retailPrice
-        return prev.map(c => c.id === p.id ? { ...c, qty: newQty, price: newPrice, isWholesale: useWholesale } : c)
+        updated = prev.map(c => c.id === p.id ? { ...c, qty: c.qty + 1 } : c)
+      } else {
+        updated = [...prev, { id: p.id, name: p.name, price: retailPrice, retailPrice, wp, wm, qty: 1, img: p.image, category: p.category, isWholesale: false }]
       }
-      return [...prev, { id: p.id, name: p.name, price: retailPrice, retailPrice, wp, wm, qty: 1, img: p.image, isWholesale: false }]
+
+      // Recalculate wholesale across all items in same category
+      return recalcWholesale(updated, products, promoMap)
     })
     setToast('Added to cart'); setTimeout(() => setToast(''), 1500)
   }
 
-  const updQty = (id, d) => setCart(prev => prev.map(c => {
-    if (c.id !== id) return c
-    const newQty = Math.max(0, c.qty + d)
-    if (newQty === 0) return { ...c, qty: 0 }
-    // Recalculate wholesale
-    const useWholesale = c.wp > 0 && c.wm > 0 && newQty >= c.wm
-    const newPrice = useWholesale ? c.wp : c.retailPrice
-    return { ...c, qty: newQty, price: newPrice, isWholesale: useWholesale }
-  }).filter(c => c.qty > 0))
+  const updQty = (id, d) => setCart(prev => {
+    const updated = prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + d) } : c).filter(c => c.qty > 0)
+    return recalcWholesale(updated, products, promoMap)
+  })
 
   const removeFromCart = id => setCart(prev => prev.filter(c => c.id !== id))
   const clearCart = () => { setCart([]); setToast('Cart cleared'); setTimeout(() => setToast(''), 1500) }
   const cc = cart.reduce((a, c) => a + c.qty, 0)
   const ct = cart.reduce((a, c) => a + c.price * c.qty, 0)
   const gp = p => promoMap[p.id] ? promoMap[p.id].price : Number(p.price)
+
+  // Recalculate wholesale across category — if total qty in same category >= wholesale min, all get wholesale price
+  const recalcWholesale = (cartItems, allProducts, promos) => {
+    // Group cart items by category
+    const catTotals = {}
+    cartItems.forEach(c => {
+      if (!c.category) return
+      catTotals[c.category] = (catTotals[c.category] || 0) + c.qty
+    })
+
+    return cartItems.map(c => {
+      const hasPromo = promos[c.id]
+      if (hasPromo) return { ...c, price: hasPromo.price, isWholesale: false } // Promo takes priority
+
+      const wp = Number(c.wp || 0)
+      const wm = Number(c.wm || 0)
+      if (wp <= 0 || wm <= 0) return { ...c, price: c.retailPrice, isWholesale: false }
+
+      // Check if total qty in this category reaches wholesale minimum
+      const categoryTotal = catTotals[c.category] || 0
+      const useWholesale = categoryTotal >= wm
+
+      return { ...c, price: useWholesale ? wp : c.retailPrice, isWholesale: useWholesale }
+    })
+  }
 
   // Share product
   const shareProduct = (p) => {
@@ -317,55 +338,72 @@ export default function App() {
           </section>
         )}
 
-        {/* Bundles */}
-        {bundles.length > 0 && (
+        {/* Promo & Bundle Showcase — replaces trending */}
+        {(promoProducts.length > 0 || bundles.length > 0) && (
           <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-              <h2 className="text-sm font-bold">Bundle Deals</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold">Deals For You</h2>
+              <button onClick={() => go('shop','/shop')} className="text-[11px] text-gray-400 font-medium flex items-center gap-0.5">See All {I.arrow}</button>
             </div>
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-              {bundles.map(b => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* Bundles first */}
+              {bundles.slice(0, 2).map(b => {
                 const bundleProducts = b.products.map(bp => products.find(p => p.id === (bp.productId || bp.product_id))).filter(Boolean)
                 const normalTotal = bundleProducts.reduce((sum, p) => sum + Number(p.price), 0)
                 const savings = normalTotal - Number(b.bundle_price)
+                const firstImg = bundleProducts.find(p => p.image)
                 return (
-                  <div key={b.id} className="min-w-[200px] max-w-[200px] bg-gray-50 rounded-xl p-3 shrink-0">
-                    <div className="flex gap-1 mb-2">
-                      {bundleProducts.slice(0, 3).map(p => (
-                        <div key={p.id} className="w-12 h-12 bg-white rounded-lg overflow-hidden">{p.image && <img src={thumb(p.image, 100)} className="w-full h-full object-cover" />}</div>
-                      ))}
-                      {bundleProducts.length > 3 && <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-[10px] text-gray-400">+{bundleProducts.length - 3}</div>}
+                  <div key={b.id} className="bg-gray-50 rounded-xl overflow-hidden">
+                    <div className="aspect-[4/3] bg-gray-100 relative">
+                      {firstImg?.image && <img src={thumb(firstImg.image, 400)} className="w-full h-full object-cover" />}
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-[var(--color-brand)] text-white text-[8px] font-bold rounded-md tracking-wide">BUNDLE</span>
                     </div>
-                    <div className="text-[12px] font-semibold line-clamp-2">{b.name}</div>
-                    <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-[13px] font-bold">{money(b.bundle_price)}</span>
-                      {savings > 0 && <span className="text-[10px] text-gray-400 line-through">{money(normalTotal)}</span>}
+                    <div className="p-2.5">
+                      <div className="text-[11px] font-semibold line-clamp-2">{b.name}</div>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <span className="text-[13px] font-bold">{money(b.bundle_price)}</span>
+                        {savings > 0 && <span className="text-[10px] text-gray-300 line-through">{money(normalTotal)}</span>}
+                      </div>
+                      {savings > 0 && <div className="text-[9px] font-bold text-green-600 mt-0.5">Save {money(savings)}</div>}
                     </div>
-                    {savings > 0 && <div className="text-[9px] font-bold text-green-600 mt-0.5">Save {money(savings)}</div>}
                   </div>
                 )
               })}
+              {/* Then promo products */}
+              {promoProducts.slice(0, bundles.length >= 2 ? 2 : 4).map(p => (
+                <div key={p.id} onClick={() => open(p)} className="cursor-pointer group">
+                  <div className="aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden relative">
+                    {p.image && <img src={thumb(p.image, 400)} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />}
+                    <span className="absolute top-2 left-2 px-2 py-0.5 bg-[var(--color-promo)] text-white text-[8px] font-bold rounded-md">PROMO</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-[11px] font-medium line-clamp-2 leading-snug">{p.name}</div>
+                    <div className="flex items-baseline gap-1.5 mt-0.5">
+                      <span className="text-[13px] font-bold">{money(promoMap[p.id].price)}</span>
+                      <span className="text-[10px] text-gray-300 line-through">{money(p.price)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
 
-        {/* Trending */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
-          <div className="flex items-center gap-2 mb-3">
-            
-            <h2 className="text-sm font-bold">Trending This Week</h2>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {trending.map(p => (
-              <div key={p.id} onClick={() => open(p)} className="cursor-pointer group">
-                <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-1.5">{p.image && <img src={thumb(p.image, 300)} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />}</div>
-                <div className="text-[11px] font-medium line-clamp-1">{p.name}</div>
-                <div className="text-[11px] font-bold">{money(gp(p))}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* Popular Products — show when no promos/bundles */}
+        {promoProducts.length === 0 && bundles.length === 0 && (
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+            <h2 className="text-sm font-bold mb-3">Popular Products</h2>
+            <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {trending.map(p => (
+                <div key={p.id} onClick={() => open(p)} className="cursor-pointer group">
+                  <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-1.5">{p.image && <img src={thumb(p.image, 300)} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />}</div>
+                  <div className="text-[11px] font-medium line-clamp-1">{p.name}</div>
+                  <div className="text-[11px] font-bold">{money(gp(p))}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Recently Viewed on Home */}
         {recentlyViewed.length > 0 && (
