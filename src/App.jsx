@@ -249,7 +249,6 @@ export default function App() {
     if (fulfillment === 'delivery' && !custAddress.trim()) { setToast('Enter delivery address'); setTimeout(() => setToast(''), 2000); return }
     if (cart.length === 0) return
 
-    // Rate limit — max 1 order per 30 seconds
     const lastOrder = Number(sessionStorage.getItem('last_order') || 0)
     if (Date.now() - lastOrder < 30000) { setToast('Please wait before placing another order'); setTimeout(() => setToast(''), 2000); return }
 
@@ -259,8 +258,58 @@ export default function App() {
     const { data: mc } = await supabase.from('whatsapp_orders').select('ussd_code').order('ussd_code', { ascending: false }).limit(1)
     const uc = (mc?.[0]?.ussd_code || 0) + 1
     const orderNotes = [fulfillment === 'pickup' ? 'PICKUP' : 'DELIVERY', notes || '', 'erbliving.shop'].filter(Boolean).join(' | ')
-    const { error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: orderNotes, status: 'Pending', ussd_code: uc })
-    if (!error) { sessionStorage.setItem('last_order', String(Date.now())); setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment }); setCart([]); setPage('success'); window.location.hash = '/success' }
+
+    // Create order first (Pending)
+    const { data: inserted, error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: orderNotes, status: 'Pending', ussd_code: uc }).select('id').single()
+
+    if (error) { setSubmitting(false); setToast('Error placing order'); setTimeout(() => setToast(''), 2000); return }
+
+    // Launch Paystack payment
+    const amountKobo = Math.round(ct * 100) // Paystack uses pesewas
+    const email = phone.replace(/\s/g, '') + '@everytinroom.shop'
+
+    try {
+      const paystack = new window.PaystackPop()
+      paystack.newTransaction({
+        key: 'pk_live_cbb1a606a75c736245dc773f142a1eb36d178644',
+        email: email,
+        amount: amountKobo,
+        currency: 'GHS',
+        ref: orderNo,
+        channels: ['mobile_money'],
+        metadata: {
+          custom_fields: [
+            { display_name: 'Customer Name', variable_name: 'customer_name', value: name },
+            { display_name: 'Phone', variable_name: 'phone', value: phone },
+            { display_name: 'Order', variable_name: 'order_no', value: orderNo },
+          ]
+        },
+        onSuccess: async (transaction) => {
+          // Payment successful — update order status
+          await supabase.from('whatsapp_orders').update({ status: 'Paid', notes: orderNotes + ' | Paystack: ' + transaction.reference }).eq('id', inserted.id)
+          sessionStorage.setItem('last_order', String(Date.now()))
+          setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: true })
+          setCart([])
+          setPage('success')
+          window.location.hash = '/success'
+        },
+        onCancel: () => {
+          // Payment cancelled — order stays Pending, show USSD fallback
+          sessionStorage.setItem('last_order', String(Date.now()))
+          setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: false })
+          setCart([])
+          setPage('success')
+          window.location.hash = '/success'
+        },
+      })
+    } catch (e) {
+      // Paystack failed to load — show USSD fallback
+      sessionStorage.setItem('last_order', String(Date.now()))
+      setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: false })
+      setCart([])
+      setPage('success')
+      window.location.hash = '/success'
+    }
     setSubmitting(false)
   }
 
@@ -612,16 +661,46 @@ export default function App() {
       {/* ═══ SUCCESS ═══ */}
       {page === 'success' && orderResult && <div className="max-w-sm mx-auto px-4 sm:px-6 py-12 text-center">
         <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">{I.check}</div>
-        <h1 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Order Placed</h1>
+        <h1 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>{orderResult.paid ? 'Payment Successful' : 'Order Placed'}</h1>
         <p className="text-xs text-gray-400 mb-6">{orderResult.orderNo}</p>
-        <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left"><p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">Pay via Mobile Money</p><div className="bg-white rounded-lg p-3 text-center border border-gray-200 cursor-pointer hover:bg-gray-50 transition" onClick={() => { navigator.clipboard?.writeText(`*920*141*${orderResult.ussdCode}#`); setToast('USSD code copied'); setTimeout(() => setToast(''), 1500) }}><span className="text-lg font-bold font-mono">*920*141*{orderResult.ussdCode}#</span><div className="text-[9px] text-gray-400 mt-1">Tap to copy</div></div><p className="text-[10px] text-gray-400 mt-2 text-center">{money(orderResult.total)}</p></div>
+
+        {orderResult.paid ? (
+          <div className="bg-green-50 rounded-xl p-4 mb-5 text-left">
+            <p className="text-sm font-bold text-green-700 mb-1">Payment received!</p>
+            <p className="text-xs text-green-600">Your order is being processed. We'll contact you shortly.</p>
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">Pay via Mobile Money</p>
+            <div className="bg-white rounded-lg p-3 text-center border border-gray-200 cursor-pointer hover:bg-gray-50 transition" onClick={() => { navigator.clipboard?.writeText(`*920*141*${orderResult.ussdCode}#`); setToast('USSD code copied'); setTimeout(() => setToast(''), 1500) }}>
+              <span className="text-lg font-bold font-mono">*920*141*{orderResult.ussdCode}#</span>
+              <div className="text-[9px] text-gray-400 mt-1">Tap to copy</div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-2 text-center">{money(orderResult.total)}</p>
+          </div>
+        )}
+
         <div className="text-left text-xs text-gray-400 space-y-1 mb-6">
-          <p>1. Dial the code to pay</p>
-          <p>2. We confirm and process your order</p>
-          {orderResult.fulfillment === 'pickup' ? (
-            <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
+          {orderResult.paid ? (
+            <>
+              <p>1. Your payment has been confirmed</p>
+              <p>2. We're processing your order now</p>
+              {orderResult.fulfillment === 'pickup' ? (
+                <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
+              ) : (
+                <p>3. Our team will contact you for delivery</p>
+              )}
+            </>
           ) : (
-            <p>3. Our team contacts you for delivery</p>
+            <>
+              <p>1. Dial the code above to pay</p>
+              <p>2. We confirm and process your order</p>
+              {orderResult.fulfillment === 'pickup' ? (
+                <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
+              ) : (
+                <p>3. Our team contacts you for delivery</p>
+              )}
+            </>
           )}
         </div>
         <button onClick={() => go('home','/')} className="h-9 px-5 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold">Continue Shopping</button>
