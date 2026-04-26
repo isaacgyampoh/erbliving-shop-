@@ -671,12 +671,25 @@ export default function App() {
           </div>
         ) : (
           <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">Pay via Mobile Money</p>
-            <div className="bg-white rounded-lg p-3 text-center border border-gray-200 cursor-pointer hover:bg-gray-50 transition" onClick={() => { navigator.clipboard?.writeText(`*920*141*${orderResult.ussdCode}#`); setToast('USSD code copied'); setTimeout(() => setToast(''), 1500) }}>
-              <span className="text-lg font-bold font-mono">*920*141*{orderResult.ussdCode}#</span>
-              <div className="text-[9px] text-gray-400 mt-1">Tap to copy</div>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-2 text-center">{money(orderResult.total)}</p>
+            <p className="text-sm font-semibold text-gray-700 mb-1">Complete your payment</p>
+            <p className="text-xs text-gray-500 mb-3">Your order has been saved. Tap below to pay via Mobile Money.</p>
+            <button onClick={() => {
+              const amountPesewas = Math.round(orderResult.total * 100)
+              const paystack = new window.PaystackPop()
+              paystack.newTransaction({
+                key: 'pk_live_cbb1a606a75c736245dc773f142a1eb36d178644',
+                email: (custPhone || '0000000000').replace(/\s/g, '') + '@everytinroom.shop',
+                amount: amountPesewas,
+                currency: 'GHS',
+                ref: orderResult.orderNo + '-R',
+                channels: ['mobile_money'],
+                onSuccess: async () => {
+                  await supabase.from('whatsapp_orders').update({ status: 'Paid' }).eq('order_no', orderResult.orderNo)
+                  setOrderResult({ ...orderResult, paid: true })
+                },
+                onCancel: () => {},
+              })
+            }} className="w-full h-10 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold hover:bg-black transition">Pay Now · {money(orderResult.total)}</button>
           </div>
         )}
 
@@ -693,7 +706,7 @@ export default function App() {
             </>
           ) : (
             <>
-              <p>1. Dial the code above to pay</p>
+              <p>1. Tap "Pay Now" to complete payment via MoMo</p>
               <p>2. We confirm and process your order</p>
               {orderResult.fulfillment === 'pickup' ? (
                 <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
@@ -703,7 +716,7 @@ export default function App() {
             </>
           )}
         </div>
-        <button onClick={() => go('home','/')} className="h-9 px-5 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold">Continue Shopping</button>
+        <button onClick={() => go('home','/')} className="h-9 px-5 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold">Continue Shopping</button>
       </div>}
 
       {/* ═══ TRACK ═══ */}
