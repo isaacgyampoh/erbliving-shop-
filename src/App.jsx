@@ -350,26 +350,37 @@ export default function App() {
 
       {/* ═══ HOME ═══ */}
       {page === 'home' && <>
-        {/* Hero — rotating product images as background */}
-        <section className="relative overflow-hidden bg-black" style={{ height: 'min(55vh, 420px)' }}>
+        {/* Hero — rotating product images + promo announcement */}
+        <section className="relative overflow-hidden bg-black" style={{ height: 'min(60vh, 450px)' }}>
           {/* Background images — crossfade */}
           {heroProducts.map((p, i) => (
             <div key={p.id} className="absolute inset-0 transition-opacity duration-1000" style={{ opacity: i === heroIdx ? 1 : 0 }}>
-              <img src={thumb(p.image, 1200)} alt="" className="w-full h-full object-cover" style={{ filter: 'brightness(0.35)' }} />
+              <img src={thumb(p.image, 1200)} alt="" className="w-full h-full object-cover" style={{ filter: 'brightness(0.25)' }} />
             </div>
           ))}
           {/* Overlay content */}
-          <div className="relative z-10 h-full flex flex-col justify-end max-w-7xl mx-auto px-4 sm:px-6 pb-8">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/60 mb-2">New Arrivals</p>
-            <h1 className="text-2xl md:text-4xl font-bold text-white leading-tight mb-4" style={{ fontFamily: 'var(--font-display)' }}>
-              Quality Home Furnishings
+          <div className="relative z-10 h-full flex flex-col justify-center items-center text-center max-w-7xl mx-auto px-4 sm:px-6">
+            {/* Promo announcement */}
+            <div className="mb-4" style={{ animation: 'pulse-soft 2s ease-in-out infinite' }}>
+              <span className="inline-block px-3 py-1 bg-[var(--color-promo)] text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full">Coming Soon</span>
+            </div>
+            <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+              Warehouse Clearance
             </h1>
+            <p className="text-lg md:text-xl text-white/80 font-medium mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+              PROMO
+            </p>
+            <div className="flex items-center gap-2 mt-3 mb-6">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <div className="text-white text-sm font-bold">May 1 — May 4</div>
+              </div>
+            </div>
+            <p className="text-white/50 text-xs max-w-sm mb-6">Massive discounts on bedsheets, curtains, carpets, cookware and more. Stay tuned!</p>
             <div className="flex items-center gap-3">
               <button onClick={() => go('shop', '/shop')} className="h-10 px-6 bg-white text-[var(--color-brand)] rounded-lg text-xs font-bold hover:bg-gray-100 transition flex items-center gap-1.5">Shop Now {I.arrow}</button>
-              {heroProducts[heroIdx] && <button onClick={() => open(heroProducts[heroIdx])} className="h-10 px-5 bg-white/15 text-white rounded-lg text-xs font-semibold hover:bg-white/25 transition backdrop-blur-sm">{money(gp(heroProducts[heroIdx]))}</button>}
             </div>
             {/* Dots */}
-            <div className="flex gap-1.5 mt-5">
+            <div className="flex gap-1.5 mt-6">
               {heroProducts.map((_, i) => (
                 <button key={i} onClick={() => setHeroIdx(i)} className={`h-1 rounded-full transition-all duration-500 ${i === heroIdx ? 'w-6 bg-white' : 'w-1.5 bg-white/30'}`} />
               ))}
