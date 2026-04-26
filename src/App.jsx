@@ -372,7 +372,7 @@ export default function App() {
             </p>
             <div className="flex items-center gap-2 mt-3 mb-6">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <div className="text-white text-sm font-bold">May 1 — May 4</div>
+                <div className="text-white text-sm font-bold">May 4 — May 9</div>
               </div>
             </div>
             <p className="text-white/50 text-xs max-w-sm mb-6">Massive discounts on bedsheets, curtains, carpets, cookware and more. Stay tuned!</p>
