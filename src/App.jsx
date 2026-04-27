@@ -264,6 +264,39 @@ export default function App() {
 
     if (error) { setSubmitting(false); setToast('Error placing order'); setTimeout(() => setToast(''), 2000); return }
 
+    // Send SMS notifications (fire and forget — don't block checkout)
+    const sendNotifications = async (paid) => {
+      const edgeFnUrl = 'https://noiiuwkovoojkcwzupye.supabase.co/functions/v1/charge-momo'
+      const smsUrl = `https://api.mnotify.com/api/sms/quick?key=WjANNXLuG7PTy8WsK6Wuwa2AG`
+      const formatPhone = (p) => p.replace(/\s+/g, '').replace(/^0/, '233')
+      const amount = money(ct)
+      const firstName = name.split(' ')[0]
+
+      try {
+        // SMS to customer
+        if (phone) {
+          const custMsg = paid
+            ? `Hi ${firstName}, thank you for your purchase of ${amount}!\n\nOrder: ${orderNo}\n\nOur ${fulfillment === 'pickup' ? 'team will have your order ready for pickup at Aviation Road J382, Adenta.' : 'delivery team will contact you shortly.'}\n\nEVERYTINROOM\n024 531 5581`
+            : `Hi ${firstName}, your order ${orderNo} (${amount}) has been placed.\n\nPlease complete payment so we can process it.\n\nEVERYTINROOM\n024 531 5581`
+
+          await fetch(smsUrl, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recipient: [formatPhone(phone)], sender: 'EverytinRM', message: custMsg, is_schedule: false, schedule_date: '' })
+          }).catch(() => {})
+        }
+
+        // SMS to admin
+        const adminMsg = paid
+          ? `New PAID order from website!\n${orderNo} ${amount}\n${name} ${phone}\n${fulfillment === 'pickup' ? 'PICKUP' : addr}\nProcess now!`
+          : `New order (unpaid) from website.\n${orderNo} ${amount}\n${name} ${phone}`
+
+        await fetch(smsUrl, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient: ['233533547740', '233548124978', '233554808341'], sender: 'EverytinRM', message: adminMsg, is_schedule: false, schedule_date: '' })
+        }).catch(() => {})
+      } catch {}
+    }
+
     // Launch Paystack payment
     const amountKobo = Math.round(ct * 100) // Paystack uses pesewas
     const email = phone.replace(/\s/g, '') + '@everytinroom.shop'
@@ -285,8 +318,8 @@ export default function App() {
           ]
         },
         onSuccess: async (transaction) => {
-          // Payment successful — update order status
           await supabase.from('whatsapp_orders').update({ status: 'Paid', notes: orderNotes + ' | Paystack: ' + transaction.reference }).eq('id', inserted.id)
+          sendNotifications(true)
           sessionStorage.setItem('last_order', String(Date.now()))
           setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: true })
           setCart([])
@@ -294,7 +327,7 @@ export default function App() {
           window.location.hash = '/success'
         },
         onCancel: () => {
-          // Payment cancelled — order stays Pending, show USSD fallback
+          sendNotifications(false)
           sessionStorage.setItem('last_order', String(Date.now()))
           setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: false })
           setCart([])
