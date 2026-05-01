@@ -259,90 +259,39 @@ export default function App() {
     const uc = (mc?.[0]?.ussd_code || 0) + 1
     const orderNotes = [fulfillment === 'pickup' ? 'PICKUP' : 'DELIVERY', notes || '', 'erbliving.shop'].filter(Boolean).join(' | ')
 
-    // Create order first (Pending)
+    // Create order (Pending) and show USSD code
     const { data: inserted, error } = await supabase.from('whatsapp_orders').insert({ order_no: orderNo, date: new Date().toISOString(), customer_name: name, customer_phone: phone, items: JSON.stringify(items), subtotal: ct, total: ct, address: addr || null, notes: orderNotes, status: 'Pending', ussd_code: uc }).select('id').single()
 
     if (error) { setSubmitting(false); setToast('Error placing order'); setTimeout(() => setToast(''), 2000); return }
 
-    // Send SMS notifications (fire and forget — don't block checkout)
-    const sendNotifications = async (paid) => {
-      const edgeFnUrl = 'https://noiiuwkovoojkcwzupye.supabase.co/functions/v1/charge-momo'
-      const smsUrl = `https://api.mnotify.com/api/sms/quick?key=WjANNXLuG7PTy8WsK6Wuwa2AG`
-      const formatPhone = (p) => p.replace(/\s+/g, '').replace(/^0/, '233')
-      const amount = money(ct)
-      const firstName = name.split(' ')[0]
-
-      try {
-        // SMS to customer
-        if (phone) {
-          const custMsg = paid
-            ? `Hi ${firstName}, thank you for your purchase of ${amount}!\n\nOrder: ${orderNo}\n\nOur ${fulfillment === 'pickup' ? 'team will have your order ready for pickup at Aviation Road J382, Adenta.' : 'delivery team will contact you shortly.'}\n\nEVERYTINROOM\n024 531 5581`
-            : `Hi ${firstName}, your order ${orderNo} (${amount}) has been placed.\n\nPlease complete payment so we can process it.\n\nEVERYTINROOM\n024 531 5581`
-
-          await fetch(smsUrl, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recipient: [formatPhone(phone)], sender: 'EverytinRM', message: custMsg, is_schedule: false, schedule_date: '' })
-          }).catch(() => {})
-        }
-
-        // SMS to admin
-        const adminMsg = paid
-          ? `New PAID order from website!\n${orderNo} ${amount}\n${name} ${phone}\n${fulfillment === 'pickup' ? 'PICKUP' : addr}\nProcess now!`
-          : `New order (unpaid) from website.\n${orderNo} ${amount}\n${name} ${phone}`
-
-        await fetch(smsUrl, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient: ['233533547740', '233548124978', '233554808341'], sender: 'EverytinRM', message: adminMsg, is_schedule: false, schedule_date: '' })
-        }).catch(() => {})
-      } catch {}
-    }
-
-    // Launch Paystack payment
-    const amountKobo = Math.round(ct * 100) // Paystack uses pesewas
-    const email = phone.replace(/\s/g, '') + '@everytinroom.shop'
+    // Send SMS notifications
+    const smsUrl = `https://api.mnotify.com/api/sms/quick?key=WjANNXLuG7PTy8WsK6Wuwa2AG`
+    const formatPhone = (p) => p.replace(/\s+/g, '').replace(/^0/, '233')
+    const amount = money(ct)
+    const firstName = name.split(' ')[0]
 
     try {
-      const paystack = new window.PaystackPop()
-      paystack.newTransaction({
-        key: 'pk_live_cbb1a606a75c736245dc773f142a1eb36d178644',
-        email: email,
-        amount: amountKobo,
-        currency: 'GHS',
-        ref: orderNo,
-        channels: ['mobile_money'],
-        metadata: {
-          custom_fields: [
-            { display_name: 'Customer Name', variable_name: 'customer_name', value: name },
-            { display_name: 'Phone', variable_name: 'phone', value: phone },
-            { display_name: 'Order', variable_name: 'order_no', value: orderNo },
-          ]
-        },
-        onSuccess: async (transaction) => {
-          await supabase.from('whatsapp_orders').update({ status: 'Paid', notes: orderNotes + ' | Paystack: ' + transaction.reference }).eq('id', inserted.id)
-          sendNotifications(true)
-          sessionStorage.setItem('last_order', String(Date.now()))
-          setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: true })
-          setCart([])
-          setPage('success')
-          window.location.hash = '/success'
-        },
-        onCancel: () => {
-          sendNotifications(false)
-          sessionStorage.setItem('last_order', String(Date.now()))
-          setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: false })
-          setCart([])
-          setPage('success')
-          window.location.hash = '/success'
-        },
-      })
-    } catch (e) {
-      // Paystack failed to load — show USSD fallback
-      sessionStorage.setItem('last_order', String(Date.now()))
-      setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment, paid: false })
-      setCart([])
-      setPage('success')
-      window.location.hash = '/success'
-    }
+      // SMS to customer
+      if (phone) {
+        const custMsg = `Hi ${firstName}, your order ${orderNo} (${amount}) has been placed.\n\nDial *920*141*${uc}# to pay via MoMo.\n\nOnce paid, ${fulfillment === 'pickup' ? 'your order will be ready for pickup at Aviation Road J382, Adenta.' : 'our delivery team will contact you shortly.'}\n\nEVERYTINROOM\n024 531 5581`
+        await fetch(smsUrl, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient: [formatPhone(phone)], sender: 'EverytinRM', message: custMsg, is_schedule: false, schedule_date: '' })
+        }).catch(() => {})
+      }
+      // SMS to admin
+      const adminMsg = `New order from website.\n${orderNo} ${amount}\n${name} ${phone}\n${fulfillment === 'pickup' ? 'PICKUP' : addr}\nUSSD: *920*141*${uc}#`
+      await fetch(smsUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: ['233533547740', '233548124978', '233554808341'], sender: 'EverytinRM', message: adminMsg, is_schedule: false, schedule_date: '' })
+      }).catch(() => {})
+    } catch {}
+
+    sessionStorage.setItem('last_order', String(Date.now()))
+    setOrderResult({ orderNo, ussdCode: uc, total: ct, fulfillment })
+    setCart([])
+    setPage('success')
+    window.location.hash = '/success'
     setSubmitting(false)
   }
 
@@ -709,62 +658,37 @@ export default function App() {
       {/* ═══ SUCCESS ═══ */}
       {page === 'success' && orderResult && <div className="max-w-sm mx-auto px-4 sm:px-6 py-12 text-center">
         <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">{I.check}</div>
-        <h1 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>{orderResult.paid ? 'Payment Successful' : 'Order Placed'}</h1>
+        <h1 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Order Placed</h1>
         <p className="text-xs text-gray-400 mb-6">{orderResult.orderNo}</p>
 
-        {orderResult.paid ? (
-          <div className="bg-green-50 rounded-xl p-4 mb-5 text-left">
-            <p className="text-sm font-bold text-green-700 mb-1">Payment received!</p>
-            <p className="text-xs text-green-600">Your order is being processed. We'll contact you shortly.</p>
+        <div className="bg-gray-50 rounded-xl p-5 mb-5 text-left">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-3">Pay via Mobile Money</p>
+          <p className="text-xs text-gray-500 mb-3">Dial this code from your phone to pay:</p>
+          <div className="bg-white rounded-lg p-4 text-center border-2 border-gray-200 cursor-pointer hover:border-gray-400 transition" onClick={() => { navigator.clipboard?.writeText(`*920*141*${orderResult.ussdCode}#`); setToast('USSD code copied'); setTimeout(() => setToast(''), 1500) }}>
+            <span className="text-2xl font-bold font-mono text-[var(--color-brand)]">*920*141*{orderResult.ussdCode}#</span>
+            <div className="text-[9px] text-gray-400 mt-1.5">Tap to copy</div>
           </div>
-        ) : (
-          <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left">
-            <p className="text-sm font-semibold text-gray-700 mb-1">Complete your payment</p>
-            <p className="text-xs text-gray-500 mb-3">Your order has been saved. Tap below to pay via Mobile Money.</p>
-            <button onClick={() => {
-              const amountPesewas = Math.round(orderResult.total * 100)
-              const paystack = new window.PaystackPop()
-              paystack.newTransaction({
-                key: 'pk_live_cbb1a606a75c736245dc773f142a1eb36d178644',
-                email: (custPhone || '0000000000').replace(/\s/g, '') + '@everytinroom.shop',
-                amount: amountPesewas,
-                currency: 'GHS',
-                ref: orderResult.orderNo + '-R',
-                channels: ['mobile_money'],
-                onSuccess: async () => {
-                  await supabase.from('whatsapp_orders').update({ status: 'Paid' }).eq('order_no', orderResult.orderNo)
-                  setOrderResult({ ...orderResult, paid: true })
-                },
-                onCancel: () => {},
-              })
-            }} className="w-full h-10 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold hover:bg-black transition">Pay Now · {money(orderResult.total)}</button>
+          <p className="text-xs text-gray-500 mt-3 text-center font-semibold">{money(orderResult.total)}</p>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-4 mb-5 text-left">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-2">How to pay</p>
+          <div className="text-xs text-gray-500 space-y-1.5">
+            <p>1. Open the dialer on your phone</p>
+            <p>2. Dial <span className="font-mono font-bold">*920*141*{orderResult.ussdCode}#</span></p>
+            <p>3. Press 1 to confirm payment</p>
+            <p>4. Approve the MoMo prompt with your PIN</p>
           </div>
-        )}
+        </div>
 
         <div className="text-left text-xs text-gray-400 space-y-1 mb-6">
-          {orderResult.paid ? (
-            <>
-              <p>1. Your payment has been confirmed</p>
-              <p>2. We're processing your order now</p>
-              {orderResult.fulfillment === 'pickup' ? (
-                <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
-              ) : (
-                <p>3. Our team will contact you for delivery</p>
-              )}
-            </>
+          {orderResult.fulfillment === 'pickup' ? (
+            <p>After payment, pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
           ) : (
-            <>
-              <p>1. Tap "Pay Now" to complete payment via MoMo</p>
-              <p>2. We confirm and process your order</p>
-              {orderResult.fulfillment === 'pickup' ? (
-                <p>3. Come pick up at <strong className="text-gray-600">{SHOP.address}</strong></p>
-              ) : (
-                <p>3. Our team contacts you for delivery</p>
-              )}
-            </>
+            <p>After payment, our team will contact you for delivery.</p>
           )}
         </div>
-        <button onClick={() => go('home','/')} className="h-9 px-5 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold">Continue Shopping</button>
+        <button onClick={() => go('home','/')} className="h-9 px-5 bg-[var(--color-brand)] text-white rounded-lg text-xs font-semibold">Continue Shopping</button>
       </div>}
 
       {/* ═══ TRACK ═══ */}
