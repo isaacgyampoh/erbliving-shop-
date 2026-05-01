@@ -680,11 +680,11 @@ export default function App() {
             <div className="space-y-3 mb-5">
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Full Name</label>
-                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Isaac Gyampoh" />
+                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custName} onChange={e => setCustName(e.target.value)} placeholder="e.g. Kofi Mensah" />
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Phone Number</label>
-                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custPhone} onChange={e => setCustPhone(e.target.value)} placeholder="0533 547 740" type="tel" />
+                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custPhone} onChange={e => setCustPhone(e.target.value)} placeholder="e.g. 024 XXX XXXX" type="tel" />
               </div>
               {fulfillment === 'delivery' && (
                 <div>
