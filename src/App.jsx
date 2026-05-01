@@ -616,44 +616,139 @@ export default function App() {
       </div>}
 
       {/* ═══ CHECKOUT ═══ */}
-      {page === 'checkout' && <div className="max-w-md mx-auto px-4 sm:px-6 py-6">
-        <button onClick={() => go('cart','/cart')} className="text-[11px] text-gray-400 hover:text-gray-600 mb-4 inline-block">&larr; Back to cart</button>
-        <h1 className="text-base font-bold mb-5" style={{ fontFamily: 'var(--font-display)' }}>Checkout</h1>
+      {page === 'checkout' && (() => {
+        const [step, setStep] = useState(1)
+        const canProceed = step === 1 ? cart.length > 0 : step === 2 ? custName.trim() && custPhone.trim() && (fulfillment !== 'delivery' || custAddress.trim()) : true
 
-        {/* Fulfillment toggle */}
-        <div className="mb-5">
-          <div className="text-[11px] text-gray-400 font-medium mb-2">How do you want to receive your order?</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setFulfillment('delivery')} className={`h-12 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${fulfillment === 'delivery' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-              Delivery
-            </button>
-            <button onClick={() => setFulfillment('pickup')} className={`h-12 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${fulfillment === 'pickup' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-              Pickup
-            </button>
+        return <div className="max-w-md mx-auto px-4 sm:px-6 py-6">
+          <button onClick={() => step > 1 ? setStep(step - 1) : go('cart','/cart')} className="text-[11px] text-gray-400 hover:text-gray-600 mb-5 inline-flex items-center gap-1">&larr; {step > 1 ? 'Back' : 'Cart'}</button>
+
+          {/* Stepper */}
+          <div className="flex items-center justify-between mb-8 px-2">
+            {[
+              { n: 1, label: 'Review', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg> },
+              { n: 2, label: 'Details', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+              { n: 3, label: 'Confirm', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> },
+            ].map((s, i) => (
+              <div key={s.n} className="flex items-center flex-1">
+                <div className="flex flex-col items-center">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${step > s.n ? 'bg-green-500 text-white' : step === s.n ? 'bg-[var(--color-brand)] text-white shadow-lg shadow-black/10' : 'bg-gray-100 text-gray-300'}`}>
+                    {step > s.n ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg> : s.icon}
+                  </div>
+                  <span className={`text-[10px] mt-1.5 font-semibold ${step >= s.n ? 'text-gray-700' : 'text-gray-300'}`}>{s.label}</span>
+                </div>
+                {i < 2 && <div className={`flex-1 h-0.5 mx-2 mb-5 rounded transition-all duration-500 ${step > s.n ? 'bg-green-400' : 'bg-gray-100'}`} />}
+              </div>
+            ))}
           </div>
-        </div>
 
-        <div className="space-y-3 mb-5">
-          <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Full name *" />
-          <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custPhone} onChange={e => setCustPhone(e.target.value)} placeholder="Phone number *" type="tel" />
-          {fulfillment === 'delivery' && (
-            <textarea className="w-full h-16 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300 resize-none" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="Delivery address (city, area, landmark) *" />
-          )}
-          {fulfillment === 'pickup' && (
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <div className="text-[11px] font-bold text-gray-700 mb-1">Pickup Location</div>
-              <div className="text-[11px] text-gray-500">{SHOP.address}</div>
-              <a href={SHOP.mapsUrl} target="_blank" className="text-[10px] text-blue-500 font-medium mt-1 inline-block">Open in Google Maps →</a>
+          {/* Step 1: Review Order */}
+          {step === 1 && <div className="animate-[fadeIn_0.3s_ease]">
+            <h2 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Review Your Order</h2>
+            <p className="text-xs text-gray-400 mb-4">{cart.length} item{cart.length !== 1 ? 's' : ''} in your cart</p>
+            <div className="space-y-2 mb-4">
+              {cart.map(c => (
+                <div key={c.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                  {c.image && <img src={thumb(c.image, 80)} alt="" className="w-12 h-12 rounded-lg object-cover" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800 truncate">{c.name}</div>
+                    <div className="text-[11px] text-gray-400">Qty: {c.qty}</div>
+                  </div>
+                  <div className="text-sm font-bold text-gray-800">{money(c.price * c.qty)}</div>
+                </div>
+              ))}
             </div>
-          )}
-          <input className="w-full h-10 px-3 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:outline-none focus:border-gray-300" value={custNotes} onChange={e => setCustNotes(e.target.value)} placeholder="Notes (optional)" />
+            <div className="bg-gray-900 text-white rounded-xl p-4 flex justify-between items-center mb-5">
+              <span className="text-sm font-medium text-gray-300">Order Total</span>
+              <span className="text-xl font-bold">{money(ct)}</span>
+            </div>
+            <button onClick={() => setStep(2)} className="w-full h-12 bg-[var(--color-brand)] text-white rounded-xl text-sm font-bold hover:bg-black transition active:scale-[0.98]">Continue to Details</button>
+          </div>}
+
+          {/* Step 2: Your Details */}
+          {step === 2 && <div className="animate-[fadeIn_0.3s_ease]">
+            <h2 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Your Details</h2>
+            <p className="text-xs text-gray-400 mb-5">How should we reach you?</p>
+
+            {/* Fulfillment toggle */}
+            <div className="mb-5">
+              <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2">Receive your order</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setFulfillment('delivery')} className={`h-14 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${fulfillment === 'delivery' ? 'bg-[var(--color-brand)] text-white shadow-lg shadow-black/5' : 'bg-gray-50 text-gray-400 border border-gray-100 hover:border-gray-200'}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  Delivery
+                </button>
+                <button onClick={() => setFulfillment('pickup')} className={`h-14 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${fulfillment === 'pickup' ? 'bg-[var(--color-brand)] text-white shadow-lg shadow-black/5' : 'bg-gray-50 text-gray-400 border border-gray-100 hover:border-gray-200'}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                  Pickup
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Full Name</label>
+                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Isaac Gyampoh" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Phone Number</label>
+                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custPhone} onChange={e => setCustPhone(e.target.value)} placeholder="0533 547 740" type="tel" />
+              </div>
+              {fulfillment === 'delivery' && (
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Delivery Address</label>
+                  <textarea className="w-full h-20 px-3.5 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition resize-none" value={custAddress} onChange={e => setCustAddress(e.target.value)} placeholder="City, area, landmark..." />
+                </div>
+              )}
+              {fulfillment === 'pickup' && (
+                <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-100">
+                  <div className="text-[11px] font-bold text-amber-800 mb-0.5">Pickup Location</div>
+                  <div className="text-[11px] text-amber-700">{SHOP.address}</div>
+                  <a href={SHOP.mapsUrl} target="_blank" className="text-[10px] text-amber-600 font-semibold mt-1 inline-block hover:underline">Open in Maps →</a>
+                </div>
+              )}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1.5 block">Notes <span className="text-gray-300">(optional)</span></label>
+                <input className="w-full h-11 px-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]/10 transition" value={custNotes} onChange={e => setCustNotes(e.target.value)} placeholder="Any special requests?" />
+              </div>
+            </div>
+            <button onClick={() => setStep(3)} disabled={!canProceed} className="w-full h-12 bg-[var(--color-brand)] text-white rounded-xl text-sm font-bold hover:bg-black transition active:scale-[0.98] disabled:opacity-30">Continue to Confirm</button>
+          </div>}
+
+          {/* Step 3: Confirm & Pay */}
+          {step === 3 && <div className="animate-[fadeIn_0.3s_ease]">
+            <h2 className="text-lg font-bold mb-1" style={{ fontFamily: 'var(--font-display)' }}>Confirm & Pay</h2>
+            <p className="text-xs text-gray-400 mb-5">Review your order and pay via MoMo</p>
+
+            <div className="bg-gray-50 rounded-xl p-4 mb-3 space-y-2">
+              <div className="flex justify-between text-xs"><span className="text-gray-400">Name</span><span className="font-semibold text-gray-700">{custName}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-gray-400">Phone</span><span className="font-semibold text-gray-700">{custPhone}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-gray-400">{fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}</span><span className="font-semibold text-gray-700 text-right max-w-[200px] truncate">{fulfillment === 'pickup' ? 'Adenta' : custAddress}</span></div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              {cart.map(c => <div key={c.id} className="flex justify-between text-[12px] py-0.5"><span className="text-gray-500">{c.qty}× {c.name}</span><span className="font-semibold">{money(c.price*c.qty)}</span></div>)}
+              <div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>{money(ct)}</span></div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-4 flex items-start gap-2.5">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 013 5.18 2 2 0 015.11 3h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+              </div>
+              <div>
+                <div className="text-xs font-bold text-blue-800">Pay via Mobile Money</div>
+                <div className="text-[11px] text-blue-600 mt-0.5">After placing your order, you'll receive a USSD code. Dial it to pay instantly via MoMo.</div>
+              </div>
+            </div>
+
+            <button onClick={placeOrder} disabled={submitting} className="w-full h-12 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition active:scale-[0.98] disabled:opacity-30 flex items-center justify-center gap-2">
+              {submitting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Placing Order...</> : <>Place Order · {money(ct)}</>}
+            </button>
+          </div>}
+
+          <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
         </div>
-        <div className="bg-gray-50 rounded-xl p-3.5 mb-4">{cart.map(c => <div key={c.id} className="flex justify-between text-[12px] py-0.5"><span className="text-gray-500">{c.qty}x {c.name}</span><span className="font-semibold">{money(c.price*c.qty)}</span></div>)}<div className="flex justify-between font-bold text-sm border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>{money(ct)}</span></div></div>
-        <p className="text-[10px] text-gray-300 text-center mb-3">You'll get a USSD code to pay via MoMo</p>
-        <button onClick={placeOrder} disabled={!custName.trim()||!custPhone.trim()||(fulfillment==='delivery'&&!custAddress.trim())||submitting} className="w-full h-11 bg-[var(--color-brand)] text-white rounded-lg text-sm font-semibold disabled:opacity-30">{submitting ? 'Placing...' : `Place Order · ${money(ct)}`}</button>
-      </div>}
+      })()}
 
       {/* ═══ SUCCESS ═══ */}
       {page === 'success' && orderResult && <div className="max-w-sm mx-auto px-4 sm:px-6 py-12 text-center">
