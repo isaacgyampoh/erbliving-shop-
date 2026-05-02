@@ -265,8 +265,8 @@ export default function App() {
 
     if (error) { setSubmitting(false); setToast('Error placing order'); setTimeout(() => setToast(''), 2000); return }
 
-    // Send SMS notifications
-    const smsUrl = `https://api.mnotify.com/api/sms/quick?key=WjANNXLuG7PTy8WsK6Wuwa2AG`
+    // Send SMS notifications via Nalo
+    const naloSms = (phone, msg) => fetch(`https://sms.nalosolutions.com/smsbackend/Aboroye_Standard/compose_sms.php?username=ISAAC&password=${encodeURIComponent('Isaac@1024')}&type=0&dlr=1&destination=${encodeURIComponent(phone)}&source=EverytinRm&message=${encodeURIComponent(msg)}`).catch(() => {})
     const formatPhone = (p) => p.replace(/\s+/g, '').replace(/^0/, '233')
     const amount = money(ct)
     const firstName = name.split(' ')[0]
@@ -275,17 +275,13 @@ export default function App() {
       // SMS to customer
       if (phone) {
         const custMsg = `Hi ${firstName}, your order ${orderNo} (${amount}) has been placed.\n\nDial *920*141*${uc}# to pay via MoMo.\n\nOnce paid, ${fulfillment === 'pickup' ? 'your order will be ready for pickup at Aviation Road J382, Adenta.' : 'our delivery team will contact you shortly.'}\n\nEVERYTINROOM\n024 531 5581`
-        await fetch(smsUrl, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient: [formatPhone(phone)], sender: 'EverytinRM', message: custMsg, is_schedule: false, schedule_date: '' })
-        }).catch(() => {})
+        await naloSms(formatPhone(phone), custMsg)
       }
       // SMS to admin
       const adminMsg = `New order from website.\n${orderNo} ${amount}\n${name} ${phone}\n${fulfillment === 'pickup' ? 'PICKUP' : addr}\nUSSD: *920*141*${uc}#`
-      await fetch(smsUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: ['233533547740', '233548124978', '233554808341'], sender: 'EverytinRM', message: adminMsg, is_schedule: false, schedule_date: '' })
-      }).catch(() => {})
+      for (const admin of ['233533547740', '233548124978', '233554808341']) {
+        await naloSms(admin, adminMsg)
+      }
     } catch {}
 
     sessionStorage.setItem('last_order', String(Date.now()))
