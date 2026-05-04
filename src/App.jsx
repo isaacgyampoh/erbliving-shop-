@@ -339,32 +339,41 @@ export default function App() {
           ))}
           {/* Overlay content */}
           <div className="relative z-10 h-full flex flex-col justify-center items-center text-center max-w-7xl mx-auto px-4 sm:px-6">
-            {/* Promo announcement */}
-            <div className="mb-4" style={{ animation: 'pulse-soft 2s ease-in-out infinite' }}>
-              <span className="inline-block px-3 py-1 bg-[var(--color-promo)] text-white text-[9px] font-bold uppercase tracking-[0.2em] rounded-full">Coming Soon</span>
+            {/* LIVE badge */}
+            <div className="mb-4 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-[0.15em] rounded-full shadow-lg shadow-red-600/30">
+                <span className="w-2 h-2 bg-white rounded-full" style={{ animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
+                LIVE NOW
+              </span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+            <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-2" style={{ fontFamily: 'var(--font-display)' }}>
               Warehouse Clearance
             </h1>
-            <p className="text-lg md:text-xl text-white/80 font-medium mb-1" style={{ fontFamily: 'var(--font-display)' }}>
-              PROMO
+            <p className="text-xl md:text-2xl text-yellow-400 font-bold mb-4" style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>
+              MEGA SALE
             </p>
-            <div className="flex items-center gap-2 mt-3 mb-6">
+            <div className="flex items-center gap-2 mb-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <div className="text-white text-sm font-bold">May 4 — May 9</div>
+                <div className="text-[10px] text-white/60 uppercase tracking-wider mb-0.5">Ends</div>
+                <div className="text-white text-sm font-bold">May 9, 2026</div>
+              </div>
+              <div className="bg-yellow-500/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-500/30">
+                <div className="text-[10px] text-yellow-300 uppercase tracking-wider mb-0.5">Save up to</div>
+                <div className="text-yellow-400 text-lg font-black">50% OFF</div>
               </div>
             </div>
-            <p className="text-white/50 text-xs max-w-sm mb-6">Massive discounts on bedsheets, curtains, carpets, cookware and more. Stay tuned!</p>
+            <p className="text-white/70 text-xs max-w-sm mb-5">Bedsheets, curtains, carpets, cookware sets and more at unbeatable prices. Limited stock!</p>
             <div className="flex items-center gap-3">
-              <button onClick={() => go('shop', '/shop')} className="h-10 px-6 bg-white text-[var(--color-brand)] rounded-lg text-xs font-bold hover:bg-gray-100 transition flex items-center gap-1.5">Shop Now {I.arrow}</button>
+              <button onClick={() => go('shop', '/shop')} className="h-11 px-7 bg-yellow-500 text-gray-900 rounded-lg text-sm font-black hover:bg-yellow-400 transition flex items-center gap-1.5 shadow-lg shadow-yellow-500/20">Shop the Sale {I.arrow}</button>
             </div>
             {/* Dots */}
-            <div className="flex gap-1.5 mt-6">
+            <div className="flex gap-1.5 mt-5">
               {heroProducts.map((_, i) => (
                 <button key={i} onClick={() => setHeroIdx(i)} className={`h-1 rounded-full transition-all duration-500 ${i === heroIdx ? 'w-6 bg-white' : 'w-1.5 bg-white/30'}`} />
               ))}
             </div>
           </div>
+          <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }`}</style>
         </section>
 
         {/* Search bar on mobile */}
